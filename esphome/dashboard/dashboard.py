@@ -14,6 +14,7 @@ import secrets
 import shutil
 import subprocess
 import threading
+from io import StringIO
 from pathlib import Path
 from typing import Optional
 
@@ -546,22 +547,18 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         with open(path, "rb") as f:
-            while True:
-                # For a 528KB image used as benchmark:
-                #   - using 256KB blocks resulted in the smallest file size.
-                #   - blocks larger than 256KB didn't improve the size of compressed file.
-                #   - blocks smaller than 256KB hindered compression, making the output file larger.
+            data = f.read()
+            if compressed:
+                with StringIO() as buffer:
+                    writer = gzip.GzipFile(None, 'wb', 9, buffer)
+                    writer.write(data)
+                    writer.close()
+                    buffer.seek(0)
 
-                # Read file in blocks of 256KB.
-                data = f.read(256 * 1024)
-
-                if not data:
-                    break
-
-                if compressed:
-                    data = gzip.compress(data, 9)
-
+                    self.write(buffer)
+            else:
                 self.write(data)
+                
         self.finish()
 
 
